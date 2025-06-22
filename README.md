@@ -16,123 +16,121 @@
 - 🖼️ **Embedded thumbnails** using base64 in a local preview.
 - 🔍 **Works locally** with any image directory.
 
----
 
 ## Installation
 
-### Requirements
-
-- Python 3.8+
-- Dependencies:
-  - `imagededup`
-  - `Pillow`
-
-Install dependencies:
 
 ```bash
-pip install imagededup pillow
+# 0) Make sure you have **Python 3.11** installed
+#    (3.12/3.13 + NumPy 2 break PyTorch and ImageDedup).
+pyenv install 3.11.13        # or: brew install python@3.11
+pyenv local 3.11.13
+
+# 1) Create & activate a fresh venv
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip setuptools wheel
+
+# 2) Install deps with NumPy pinned <2
+pip install -r requirements.txt
+pip install "numpy<2"  --upgrade
 ```
+
+> **Why this pin?**  
+> ImageDedup & PyTorch wheels are compiled against NumPy 1.x;  
+> importing them with NumPy 2.x crashes with `_ARRAY_API not found`.
 
 ---
 
-## Usage
-
-### Preview Only
+## 🚀 Usage
 
 ```bash
-python dedupe.py /path/to/images --method phash --threshold 10
+# Preview only (pHash, Hamming ≤ 10)
+python dedupe.py FOLDER --method phash --threshold 10
+
+# More precise CNN matcher (cosine ≥ 0.88)
+python dedupe.py FOLDER --method cnn --threshold 0.88
+
+# Keep the largest in each dup‑set, move the rest → duplicates/
+python dedupe.py FOLDER --move keep-largest
+# …identical to:
+python dedupe.py FOLDER --delete keep-largest
 ```
 
-### Auto-Move Duplicates
+_After every run an_ **`similar_images_preview.html`** _is written **inside
+the scanned folder**. Open it in your browser to inspect groups._
 
-```bash
-python dedupe.py /path/to/images --delete keep-largest
-```
+### CLI flags
 
-### Options
-
-| Flag          | Description                                                    |
-| ------------- | -------------------------------------------------------------- |
-| `--method`    | `cnn` (default) or `phash`                                     |
-| `--threshold` | CNN: cosine ≥ value (e.g., `0.85`) <br> pHash: Hamming ≤ value |
-| `--delete`    | Deletes all but largest image in each group                    |
-| `--move`      | Alias for `--delete keep-largest`                              |
+| flag / option           | default | meaning                                                            |
+| ----------------------- | ------- | ------------------------------------------------------------------ |
+| `--method cnn / phash`  | `cnn`   | CNN = MobileNet‑V3 cosine similarity   ·   pHash = perceptual hash |
+| `--threshold`           | `0.85`  | CNN ≥ thr   ·   pHash ≤ thr                                        |
+| `--move keep-largest`   | –       | move dupes to `duplicates/`, keep biggest                          |
+| `--delete keep-largest` | –       | same as `--move` (alias)                                           |
 
 ---
 
-## Output
+## 🖥️ Example workflow
 
-- **HTML Preview**: `similar_images_preview.html` created in the same folder.
-- **Duplicate Files**: moved to `duplicates/` subfolder when `--delete` or `--move` is used.
+```bash
+# 1) Scan & preview
+python dedupe.py ~/Pictures/2023_Trip
+
+# 2) Happy with groups? Clean them:
+python dedupe.py ~/Pictures/2023_Trip --move keep-largest
+```
+
+The preview is automatically regenerated so you can double‑check the cleaned
+folder.
 
 ---
 
-## Project Structure
+## 📂 Project layout
 
 ```
 photo-deduper/
-├── dedupe.py           # Main CLI script
-├── finder.py           # Duplicate detection and grouping logic
-├── delete_logic.py     # File-moving logic for cleaning duplicates
-└── helpers.py          # Thumbnail generation and utilities
+├── dedupe.py        # CLI, HTML generator
+├── finder.py        # duplicate detection & grouping
+├── delete_logic.py  # move / delete helpers
+├── helpers.py       # thumbnails & utils
+└── README.md
 ```
 
 ---
 
-## How It Works
+## ⚙️ How it works
 
-### 1. Duplicate Detection (`finder.py`)
+1. **finder.py**
 
-- `_list_images(folder)` filters valid image files.
-- `dupes_cnn(folder, thr)`:
-  - Uses cosine similarity via `imagededup.methods.CNN`.
-- `dupes_phash(folder, max_dist)`:
-  - Uses Hamming distance via `imagededup.methods.PHash`.
-- `build_groups()`:
-  - Converts flat pairwise matches into connected component groups.
+   - `_list_images()` filters by extension
+   - `dupes_cnn()` ‑ MobileNet‑V3 embeddings → cosine similarity
+   - `dupes_phash()` ‑ perceptual hash → Hamming distance
+   - `build_groups()` converts pairwise matches → connected components
 
-### 2. Duplicate Cleanup (`delete_logic.py`)
+2. **delete_logic.py**
 
-- `move_dupes()`:
-  - Sorts files by size, keeps the largest.
-  - Moves all others to `duplicates/`.
+   - Keeps the largest file (by bytes) in each group and moves others to
+     `duplicates/`, creating unique names when needed.
 
-### 3. HTML Output (`dedupe.py`)
-
-- Generates an HTML page with thumbnail previews for each group.
-- Uses `thumb_b64()` to embed thumbnails directly (base64).
-- Interactive viewer with `onclick` zoom.
+3. **dedupe.py**
+   - wraps everything into a nice CLI
+   - builds an HTML gallery with embedded base‑64 thumbnails
+   - simple JS overlay lets you view originals at 1‑click.
 
 ---
 
-## Helper Utilities (`helpers.py`)
+## ⚠️ Known issues / notes
 
-- `kb(path)`: returns image size in kilobytes.
-- `thumb_b64(path)`: returns base64 PNG thumbnail (150×150 px).
-- Built with `Pillow` for image resizing and encoding.
-
----
-
-## Example HTML Output
-
-Each group is displayed in a styled section:
-
-- Group number
-- Thumbnail previews
-- File size below each image
-- Click to enlarge (JS overlay)
-- Esc to dismiss enlarged image
+| issue                                                | workaround                                  |
+| ---------------------------------------------------- | ------------------------------------------- |
+| Python 3.12/3.13 + NumPy 2.x crash with PyTorch ≥2.1 | stay on **Python 3.11 + `numpy<2`**         |
+| Corrupted / non‑image files                          | skipped and logged (_“Found N bad images”_) |
+| Groups of size 1                                     | ignored by design                           |
+| Thumbnails may fail for exotic RAW/HEIC              | preview still renders (blank square shown)  |
 
 ---
 
-## Caveats and Notes
+## 📝 License
 
-- Only standard image formats are supported (`.jpg`, `.png`, `.gif`, `.heic`, etc.).
-- You can adjust similarity threshold (`--threshold`) to tune detection sensitivity.
-- Groups with only one image (no real duplicates) are excluded.
-
----
-
-## License
-
-MIT License (add LICENSE file separately if needed)
+MIT
