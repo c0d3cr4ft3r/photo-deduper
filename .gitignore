@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+.env/
+.venv/
+
+# Python-specific metadata
+.python-version
+
+# Jupyter/IPython checkpoints (if used later)
+.ipynb_checkpoints/
+
+# VS Code config (optional)
+.vscode/
+
+# macOS system files
+.DS_Store
+
+# HTML preview output
+similar_images_preview.html
+
+# Logs or temp files (if added in future)
+*.log
+*.tmp
